@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+
+// Saves each chapter's tested examples for its page's Run buttons (docs/js/VerseRun.js): the displayed code of every
+// example bin/extract makes a test of, with the hidden setup before it and the hidden checks after it. A page finds its
+// examples by their code and composes each one's test as bin/extract does (docs/js/VerseSnippets.mjs).
+//
+// Usage: snippets <out-dir>  (from the book's root: writes <out-dir>/<chapter>.json for every docs/**/*.md)
+//
+// The site's build runs this (hooks/run_buttons.py) and publishes the files as snippets/<chapter>.json.
+
+const fs = require('fs');
+const path = require('path');
+const { pathToFileURL } = require('url');
+
+function findMarkdownFiles(dir) {
+  let results = [];
+  for (const item of fs.readdirSync(dir).sort()) {
+    // Skip hidden files
+    if (item.startsWith('.')) {
+      continue;
+    }
+    const fullPath = path.join(dir, item);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      results = results.concat(findMarkdownFiles(fullPath));
+    } else if (stat.isFile() && (item.endsWith('.md') || item.endsWith('.markdown'))) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
+async function main() {
+  const docsDir = path.join(process.cwd(), 'docs');
+  if (!fs.existsSync(docsDir)) {
+    console.error('Error: docs directory not found in current directory');
+    process.exit(1);
+  }
+  const { extractVerseSnippets } = await import(
+    pathToFileURL(path.join(__dirname, '..', 'docs', 'js', 'VerseSnippets.mjs')).href);
+
+  if (process.argv.length !== 3) {
+    console.error('Usage: snippets <out-dir>');
+    process.exit(1);
+  }
+  const outDir = path.resolve(process.argv[2]);
+  fs.mkdirSync(outDir, { recursive: true });
+
+  // The chapters' warnings are bin/extract's to report: here they would only repeat.
+  const warn = console.warn;
+  console.warn = () => {};
+
+  let pages = 0;
+  let total = 0;
+  for (const file of findMarkdownFiles(docsDir)) {
+    const relative = path.relative(docsDir, file).split(path.sep).join('/');
+    const snippets = extractVerseSnippets(fs.readFileSync(file, 'utf-8'), path.basename(file));
+    if (snippets.length === 0) {
+      continue;
+    }
+    const outFile = path.join(outDir, relative.replace(/\.(md|markdown)$/, '.json'));
+    fs.mkdirSync(path.dirname(outFile), { recursive: true });
+    fs.writeFileSync(outFile, JSON.stringify({
+      source: relative,
+      snippets: snippets.map(({ number, code, prepend, append }) => ({ number, code, prepend, append }))
+    }) + '\n');
+    pages++;
+    total += snippets.length;
+  }
+  console.warn = warn;
+  console.log(`Saved ${total} example(s) of ${pages} chapter(s) in ${outDir}`);
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

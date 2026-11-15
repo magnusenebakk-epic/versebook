@@ -23,6 +23,8 @@ jobs:
           sparse-checkout: |
             docs
             verse_lexer
+            bin
+            hooks
             mkdocs.yml
             requirements.txt
 

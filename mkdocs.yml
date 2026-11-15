@@ -77,6 +77,11 @@ extra_javascript:
   - type: module
     path: js/Verse.js
 
+# Run buttons under the examples: when docs/runtime has the Verse test runner for browsers, this adds
+# js/VerseRun.js to the pages and publishes the examples it needs (DEVELOPMENT.md, "Run buttons")
+hooks:
+  - hooks/run_buttons.py
+
 nav:
   - Home: index.md
   - Overview: 00_overview.md

@@ -96,6 +96,8 @@ one named in `fortniteMain/JanInfo/README.md`, which is out of date.
 
 - `bin/extract <markdown-file> -t <target-directory>` - Extract Verse snippets from markdown
 - `bin/extract_all` - Extract all snippets from all docs
+- `bin/snippets <out-dir>` - Save each chapter's tested examples, with their hidden setup and
+  checks, for the pages' Run buttons (the site's build runs it; see "Run buttons" below)
 
 ### Runtime API Summaries
 
@@ -105,6 +107,50 @@ one named in `fortniteMain/JanInfo/README.md`, which is out of date.
   skipping quietly when no engine checkout is available
 
 See "Summarising the runtime API" below.
+
+## Run buttons (prototype)
+
+Every example the book's checks test can have a **Run** button under it: the reader runs the
+example in the page, sees what it prints and whether the book's checks on it hold, and can
+edit it and run it again. Nothing is sent to a server: the page runs the Verse test runner
+itself, built for WebAssembly.
+
+How it fits together:
+
+- `docs/js/VerseSnippets.mjs` finds a chapter's examples and composes each one's test: the
+  stubs, the hidden setup, the example (types hoisted, the rest in an `assert:` block), the
+  hidden checks. `bin/extract` uses it for the `.versetest` files, and the pages use it for
+  Run, so what a reader runs is what the checks run. The one difference: on a page, `Print`
+  prints (through the test runner's `DebugPrint`) instead of being a stub.
+- `bin/snippets` saves each chapter's examples as JSON. The site's build runs it
+  (`hooks/run_buttons.py`, an MkDocs hook), publishes the files as `snippets/<chapter>.json`
+  and adds `js/VerseRun.js` to the pages, when the runtime is there (below).
+- `docs/js/VerseRun.js` gives every example on a page that has an entry in its chapter's file
+  the buttons, and reads the test runner's output as `bin/vtest` does. Errors are reported at
+  the example's own lines; an error in the hidden part is reported as such.
+- `docs/runtime/run.html` and `run.js` are one run: a fresh instance of the test runner in a
+  frame of its own, which Stop removes.
+- `docs/coi-sw.js` is a service worker that makes the pages cross-origin isolated, which the
+  runtime's threads need, on hosts that don't send the two headers for it (GitHub Pages
+  doesn't). It is registered on a reader's first Run, never before.
+
+The runtime is `VerseTestScriptCmdVM`, the program `bin/vtest` runs, built for browsers:
+`VerseTestScriptCmdVMWeb.js`, `.wasm` and `.data`. That build isn't published yet, so the
+files aren't in this repository (`docs/runtime/VerseTestScriptCmdVMWeb.*` is gitignored).
+To try the buttons, copy the three files into `docs/runtime/` and build or serve the site
+as usual:
+
+```bash
+cp <build>/VerseTestScriptCmdVMWeb.{js,wasm,data} docs/runtime/
+mkdocs serve
+```
+
+Without them, or without Node, the hook does nothing: the pages load no script for the
+buttons and the site is what it was.
+
+What a reader needs: a browser with 64-bit WebAssembly (current Chrome, Edge and Firefox;
+not Safari). The first Run downloads the runtime (about 85 MB, 16 MB compressed in
+transfer) and compiles it; later runs on the page take about a second.
 
 ## Summarising the runtime API
 

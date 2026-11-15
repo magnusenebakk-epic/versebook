@@ -39,6 +39,9 @@ MANIFEST
 # MkDocs
 site/
 
+# The Verse test runner for browsers, for the examples' Run buttons (DEVELOPMENT.md): a build, not a source
+docs/runtime/VerseTestScriptCmdVMWeb.*
+
 .mkdocs/
 
 # IDE

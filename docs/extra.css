@@ -22,3 +22,115 @@ table th, table td {
   padding-top: 0.5em;
   border-top: 1px solid var(--md-default-fg-color--lightest);
 }
+
+/* Run buttons under the book's examples (js/VerseRun.js): the example's block (or its editor), a bar with Run / Edit /
+   Reset and the run's status, and what the run printed. */
+.verse-example {
+  margin: 1em 0;
+}
+
+.md-typeset .verse-example > pre {
+  margin: 0;
+}
+
+.verse-example[data-editing] > pre,
+.verse-example-editor[hidden],
+.verse-example-result[hidden],
+.verse-example-bar button[hidden],
+.verse-example-frame {
+  display: none;
+}
+
+.verse-example-editor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.77em 1.18em;
+  border: 1px solid var(--md-accent-fg-color);
+  border-radius: 0.1rem;
+  color: var(--md-code-fg-color);
+  background: var(--md-code-bg-color);
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.85em;
+  line-height: 1.4;
+  tab-size: 4;
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+.verse-example-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+}
+
+.verse-example-bar button {
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.2rem;
+  color: var(--md-default-fg-color);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.verse-example-bar button:hover,
+.verse-example-bar button:focus-visible {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+}
+
+.verse-example-bar .verse-example-run {
+  font-weight: 700;
+}
+
+.verse-example-status {
+  color: var(--md-default-fg-color--light);
+}
+
+.verse-example[data-state="passed"] .verse-example-status::before {
+  content: "\2713\00a0";
+  color: #2e7d32;
+}
+
+.verse-example[data-state="failed"] .verse-example-status,
+.verse-example[data-state="unavailable"] .verse-example-status,
+.verse-example-error {
+  color: #c62828;
+}
+
+.verse-example-warning {
+  color: #9a6700;
+}
+
+[data-md-color-scheme="slate"] .verse-example-warning {
+  color: #e3b341;
+}
+
+[data-md-color-scheme="slate"] .verse-example[data-state="passed"] .verse-example-status::before {
+  color: #81c784;
+}
+
+[data-md-color-scheme="slate"] .verse-example[data-state="failed"] .verse-example-status,
+[data-md-color-scheme="slate"] .verse-example[data-state="unavailable"] .verse-example-status,
+[data-md-color-scheme="slate"] .verse-example-error {
+  color: #ef9a9a;
+}
+
+.verse-example-result {
+  margin-top: 0.3rem;
+  padding: 0.5em 1.18em;
+  border-left: 0.2rem solid var(--md-default-fg-color--lighter);
+  background: var(--md-code-bg-color);
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 24em;
+  overflow-y: auto;
+}
