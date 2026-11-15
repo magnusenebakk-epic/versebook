@@ -5,6 +5,9 @@
 // the Verse test runner built for WebAssembly (runtime/), and shows what the example printed and whether its checks
 // held. Edit lets the reader change the example and run it again.
 //
+// Many examples are fragments that only compile with their hidden setup (stub definitions of the names they use). An
+// example with hidden setup or checks has a Hidden code button that shows them; with Edit they can be changed too.
+//
 // The page's examples come from snippets/<chapter>.json (bin/snippets, run by the site's build: hooks/run_buttons.py,
 // which also adds this script to the pages, and does neither for a site built without the runtime); an example on the
 // page is matched to its entry by its code. The runtime is fetched and compiled on the first Run and kept for the next
@@ -63,110 +66,182 @@ function decorate() {
     }
 }
 
+// The parts of an example's test that the book doesn't show (bin/extract: the comments around the example).
+const HiddenParts = [
+    { part: "setup", of: (snippet) => snippet.prepend, caption: "Hidden in the book: this runs before the example" },
+    { part: "checks", of: (snippet) => snippet.append, caption: "Hidden in the book: this is checked after the example" },
+];
+
 function makeExample(pre, snippet) {
-    // The block stays the wrapper's first child: the highlighter replaces it there.
+    // The wrapper holds, in this order: the hidden setup (if the example has one), the block (which the highlighter
+    // replaces in place) or its editor, the hidden checks (if any), the bar, the result.
     const wrapper = document.createElement("div");
     wrapper.className = "verse-example";
     wrapper.dataset.snippet = snippet.number;
     pre.replaceWith(wrapper);
     wrapper.append(pre);
 
-    const editor = document.createElement("textarea");
-    editor.className = "verse-example-editor";
-    editor.spellcheck = false;
-    editor.autocapitalize = "off";
-    editor.hidden = true;
-    editor.setAttribute("aria-label", "The example's code. Tab indents; Escape leaves the editor; Ctrl+Enter runs.");
-
     const bar = document.createElement("div");
     bar.className = "verse-example-bar";
-    const button = (label, title) => {
+    const button = (label, title, className) => {
         const element = document.createElement("button");
         element.type = "button";
         element.textContent = label;
         element.title = title;
+        element.className = className;
         bar.append(element);
         return element;
     };
-    const run = button("▶ Run", "Run this example in the page");
-    run.className = "verse-example-run";
-    const edit = button("Edit", "Change the example and run it again");
-    edit.className = "verse-example-edit";
-    const reset = button("Reset", "Back to the book's example");
+    const run = button("▶ Run", "Run this example in the page", "verse-example-run");
+    const edit = button("Edit", "Change the example and run it again", "verse-example-edit");
+    const reset = button("Reset", "Back to the book's example", "verse-example-reset");
     reset.hidden = true;
-    const status = document.createElement("span");
-    status.className = "verse-example-status";
-    status.setAttribute("role", "status");
-    bar.append(status);
 
     const result = document.createElement("div");
     result.className = "verse-example-result";
     result.hidden = true;
 
-    wrapper.append(editor, bar, result);
-    const example = { wrapper, snippet, editor, run, status, result, running: false };
-
+    const example = { wrapper, snippet, run, result, running: false };
     const editing = () => "editing" in wrapper.dataset;
-    const currentLines = () => (editing() ? editor.value.replace(/\r/g, "").replace(/\s+$/, "").split("\n") : snippet.code);
-    const clear = () => {
-        result.hidden = true;
-        status.textContent = "";
-        delete wrapper.dataset.state;
+
+    // A text area for one part of the test: the example's code, or a hidden part.
+    const size = (area) => {
+        area.rows = area.value.split("\n").length + (area.readOnly ? 0 : 1);
+    };
+    const fill = (area, text) => {
+        area.value = text;
+        size(area);
+    };
+    const linesOf = (area) => {
+        const text = area.value.replace(/\r/g, "").replace(/\s+$/, "");
+        return text ? text.split("\n") : [];
+    };
+    const makeEditor = (className, label) => {
+        const area = document.createElement("textarea");
+        area.className = className;
+        area.spellcheck = false;
+        area.autocapitalize = "off";
+        area.setAttribute("aria-label", `${label}. Tab indents; Escape leaves the editor; Ctrl+Enter runs.`);
+        area.addEventListener("input", () => size(area));
+        // Tab indents (Verse's blocks are indented, by four spaces in the book) instead of leaving the editor, which
+        // Escape does; Ctrl+Enter runs.
+        area.addEventListener("keydown", (event) => {
+            if (event.key === "Tab" && !area.readOnly && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                event.preventDefault();
+                area.setRangeText("    ", area.selectionStart, area.selectionEnd, "end");
+                size(area);
+            } else if (event.key === "Escape") {
+                run.focus();
+            } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                start(example);
+            }
+        });
+        return area;
     };
 
+    const editor = makeEditor("verse-example-editor", "The example's code");
+    editor.hidden = true;
+    pre.after(editor);
+
+    // The hidden parts this example has, each shown (read-only until Edit) once the reader asks for the hidden code.
+    const hidden = {};
+    for (const { part, of, caption } of HiddenParts) {
+        const text = textOf(of(snippet));
+        if (!text.trim()) continue;
+        const section = document.createElement("div");
+        section.className = "verse-example-hidden";
+        section.dataset.part = part;
+        const label = document.createElement("div");
+        label.className = "verse-example-caption";
+        label.textContent = caption;
+        const area = makeEditor("verse-example-part", caption);
+        area.readOnly = true;
+        fill(area, text);
+        section.append(label, area);
+        if (part === "setup") wrapper.prepend(section);
+        else editor.after(section);
+        hidden[part] = { area, text };
+    }
+    example.reveal = () => {};
+    if (Object.keys(hidden).length) {
+        const reveal = button("", "This example runs with code the book doesn't show: what runs before it, and what is checked after it", "verse-example-reveal");
+        example.reveal = (on) => {
+            if (on) wrapper.dataset.revealed = "";
+            else delete wrapper.dataset.revealed;
+            reveal.textContent = on ? "▾ Hidden code" : "▸ Hidden code";
+            reveal.setAttribute("aria-expanded", String(on));
+        };
+        example.reveal(false);
+        reveal.addEventListener("click", () => example.reveal(!("revealed" in wrapper.dataset)));
+    }
+
+    const status = document.createElement("span");
+    status.className = "verse-example-status";
+    status.setAttribute("role", "status");
+    bar.append(status);
+    example.status = status;
+    wrapper.append(bar, result);
+
+    // The test's parts as they are now: the book's own lines for a part the reader hasn't changed.
+    const part = (area, original) => {
+        const lines = linesOf(area);
+        return textOf(lines) === textOf(original) ? original : lines;
+    };
+    example.parts = () => (editing() ? {
+        code: part(editor, snippet.code),
+        prepend: hidden.setup ? part(hidden.setup.area, snippet.prepend) : snippet.prepend,
+        append: hidden.checks ? part(hidden.checks.area, snippet.append) : snippet.append,
+    } : { code: snippet.code, prepend: snippet.prepend, append: snippet.append });
+
     edit.addEventListener("click", () => {
-        editor.value = snippet.text;
-        editor.rows = snippet.code.length + 1;
+        fill(editor, snippet.text);
         wrapper.dataset.editing = ""; // the stylesheet hides the block: whichever one the highlighter has put there
         editor.hidden = false;
+        for (const { area } of Object.values(hidden)) {
+            area.readOnly = false;
+            size(area);
+        }
         edit.hidden = true;
         reset.hidden = false;
         editor.focus();
-    });
-    editor.addEventListener("input", () => {
-        editor.rows = editor.value.split("\n").length + 1;
-    });
-    // Tab indents (Verse's blocks are indented, by four spaces in the book) instead of leaving the editor, which Escape
-    // does; Ctrl+Enter runs.
-    editor.addEventListener("keydown", (event) => {
-        if (event.key === "Tab" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
-            event.preventDefault();
-            editor.setRangeText("    ", editor.selectionStart, editor.selectionEnd, "end");
-            editor.dispatchEvent(new Event("input"));
-        } else if (event.key === "Escape") {
-            run.focus();
-        } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-            event.preventDefault();
-            start(example, currentLines());
-        }
     });
     reset.addEventListener("click", () => {
         if (example.running) Runtime.stop();
         delete wrapper.dataset.editing;
         editor.hidden = true;
+        for (const { area, text } of Object.values(hidden)) {
+            area.readOnly = true;
+            fill(area, text);
+        }
         edit.hidden = false;
         reset.hidden = true;
-        clear();
+        result.hidden = true;
+        status.textContent = "";
+        delete wrapper.dataset.state;
     });
     run.addEventListener("click", () => {
         if (example.running) Runtime.stop();
-        else start(example, currentLines());
+        else start(example);
     });
     return example;
 }
 
 // ---------- A run ----------
 
-async function start(example, lines) {
+async function start(example) {
     const { snippet, run, status, result, wrapper } = example;
-    const edited = textOf(lines) !== snippet.text;
-    const { content, origin, shift } = composeTest({ code: lines, prepend: snippet.prepend, append: snippet.append }, { printOutput: true });
+    const { code, prepend, append } = example.parts();
+    const edited = code !== snippet.code || prepend !== snippet.prepend || append !== snippet.append;
+    const { content, where } = composeTest({ code, prepend, append }, { printOutput: true });
 
     if (!Runtime.supported()) {
         show(example, "unavailable", Unsupported);
         return;
     }
-    if (!crossOriginIsolated && !(await isolate(snippet, edited ? textOf(lines) : null))) {
+    // (What a reload must bring back: the reader's version of the parts, and whether the hidden ones were showing.)
+    const keep = { edited: edited ? { code: textOf(code), setup: textOf(prepend), checks: textOf(append) } : null, revealed: "revealed" in wrapper.dataset };
+    if (!crossOriginIsolated && !(await isolate(snippet, keep))) {
         show(example, "unavailable", "Examples can't run here: this page can't be given the browser's permission to run threads.");
         return;
     }
@@ -185,7 +260,7 @@ async function start(example, lines) {
         if (outcome.stopped) {
             show(example, "stopped", "Stopped.");
         } else {
-            report(example, interpret(outcome, origin, shift), edited);
+            report(example, interpret(outcome, where), append.length > 0);
         }
     } catch (error) {
         show(example, "unavailable", String(error && error.message ? error.message : error));
@@ -208,7 +283,7 @@ const Noise = /^(Log\w*: |\[\d{4}\.\d\d\.\d\d-|Used inside function |Used memory
 // What the test runner printed, read as the book's own checks read it (bin/vtest): compile errors and failed checks
 // with their positions, mapped from the composed test's lines to the example's; everything else it printed that isn't
 // the runtime's own is what the example printed.
-function interpret(outcome, origin, shift) {
+function interpret(outcome, where) {
     const located = /^(?:LogVerseBuild: (?:Error|Warning): )?(.*?)\((\d+),(\d+),\s*(\d+),(\d+)\):\s*(.*)$/;
     const errors = [];
     const warnings = [];
@@ -227,11 +302,12 @@ function interpret(outcome, origin, shift) {
                 checksFailed = true;
                 continue;
             }
-            const source = row >= 1 && row <= origin.length ? origin[row - 1] : -1;
-            const place = source >= 0 ? { line: source + 1, column: Math.max(1, column - shift[row - 1]), message } : { line: null, message };
-            // A warning doesn't fail the test (bin/vtest passes it too); one in the hidden part isn't the reader's.
+            // (part: null for a line of the test's own, around the example.)
+            const from = row >= 1 && row <= where.length ? where[row - 1] : null;
+            const place = from ? { part: from.part, line: from.line + 1, column: Math.max(1, column - from.shift), message } : { part: null, message };
+            // A warning doesn't fail the test (bin/vtest passes it too); one outside the example isn't the reader's.
             if (kind && kind[1] === "Script Warning") {
-                if (place.line) warnings.push(place);
+                if (place.part === "code") warnings.push(place);
             } else {
                 errors.push(place);
             }
@@ -244,8 +320,9 @@ function interpret(outcome, origin, shift) {
     return { errors, warnings, printed, checksFailed, status: outcome.status, what: outcome.what, ms: outcome.ms };
 }
 
-function report(example, { errors, warnings, printed, checksFailed, status, what, ms }, edited) {
-    const { result, snippet } = example;
+// Shows a run's result. `checked`: the test had hidden checks after the example.
+function report(example, { errors, warnings, printed, checksFailed, status, what, ms }, checked) {
+    const { result } = example;
     result.replaceChildren();
     const add = (className, text) => {
         const line = document.createElement("div");
@@ -253,16 +330,20 @@ function report(example, { errors, warnings, printed, checksFailed, status, what
         line.textContent = text;
         result.append(line);
     };
+    const at = (place) => {
+        if (place.part === "code") return `Line ${place.line}, column ${place.column}`;
+        if (place.part === "setup") return `Hidden setup, line ${place.line}, column ${place.column}`;
+        if (place.part === "checks") return `Hidden checks, line ${place.line}, column ${place.column}`;
+        return "In the test around the example";
+    };
     for (const text of printed) add("verse-example-output", text);
-    for (const error of errors) {
-        add("verse-example-error", error.line ? `Line ${error.line}, column ${error.column}: ${error.message}` : `In the example's hidden setup: ${error.message}`);
-    }
-    for (const warning of warnings) {
-        add("verse-example-warning", `Line ${warning.line}, column ${warning.column}: warning: ${warning.message}`);
-    }
+    for (const error of errors) add("verse-example-error", `${at(error)}: ${error.message}`);
+    for (const warning of warnings) add("verse-example-warning", `${at(warning)}: warning: ${warning.message}`);
+    // An error in a hidden part: the reader gets to see what it is about.
+    if (errors.some((error) => error.part === "setup" || error.part === "checks")) example.reveal(true);
     const seconds = `${(ms / 1000).toFixed(1)} s`;
     let state = "passed";
-    let summary = (snippet.append.length ? `Ran in ${seconds} and passed the book's checks.` : `Ran in ${seconds}.`) + (printed.length ? "" : " It prints nothing.");
+    let summary = `Compiled and ran in ${seconds}${checked ? "; the hidden checks hold." : "."}${printed.length ? "" : " It prints nothing."}`;
     if (status === "flood") {
         state = "stopped";
         summary = `Stopped: it printed more than ${MaxLines.toLocaleString("en")} lines.`;
@@ -274,8 +355,8 @@ function report(example, { errors, warnings, printed, checksFailed, status, what
         summary = errors.length === 1 ? "It doesn't compile." : `It doesn't compile (${errors.length} errors).`;
     } else if (checksFailed) {
         state = "failed";
-        summary = edited && snippet.append.length
-            ? "It compiles, but it stopped with a runtime error, or what the book checks about this example no longer holds."
+        summary = checked
+            ? "It compiles, but it stopped with a runtime error, or a hidden check doesn't hold."
             : "It compiles, but it stopped with a runtime error.";
     } else if (status !== 0) {
         state = "failed";
@@ -289,9 +370,9 @@ function report(example, { errors, warnings, printed, checksFailed, status, what
 
 // The runtime runs threads, which browsers allow only on cross-origin isolated pages (two response headers). Where the
 // site's host doesn't send them, a service worker adds them (coi-sw.js) and the page reloads once; the example whose
-// Run asked for it runs when the page is back (`edited`: the reader's version of it, if they changed it). False when
-// that can't be done or didn't help.
-async function isolate(snippet, edited) {
+// Run asked for it runs when the page is back (`keep`: the reader's version of its parts, if they changed any, and
+// whether its hidden code was showing). False when that can't be done or didn't help.
+async function isolate(snippet, keep) {
     if (!window.isSecureContext || !("serviceWorker" in navigator)) return false;
     const resume = JSON.parse(sessionStorage.getItem(ResumeKey) || "null");
     if (resume && resume.page === location.pathname) return false; // one try: no loop if the page still isn't isolated
@@ -301,7 +382,7 @@ async function isolate(snippet, edited) {
     } catch {
         return false;
     }
-    sessionStorage.setItem(ResumeKey, JSON.stringify({ page: location.pathname, number: snippet.number, edited }));
+    sessionStorage.setItem(ResumeKey, JSON.stringify({ page: location.pathname, number: snippet.number, ...keep }));
     location.reload();
     return new Promise(() => {}); // the reload takes over
 }
@@ -317,11 +398,18 @@ function resumeAfterReload() {
     const wrapper = document.querySelector(`.verse-example[data-snippet="${CSS.escape(resume.number)}"]`);
     if (wrapper) {
         wrapper.scrollIntoView({ block: "center" });
-        if (typeof resume.edited === "string") {
+        if (resume.revealed) wrapper.querySelector(".verse-example-reveal")?.click();
+        if (resume.edited) {
             wrapper.querySelector(".verse-example-edit").click();
-            const editor = wrapper.querySelector(".verse-example-editor");
-            editor.value = resume.edited;
-            editor.dispatchEvent(new Event("input"));
+            const restore = (selector, text) => {
+                const area = wrapper.querySelector(selector);
+                if (!area || typeof text !== "string") return;
+                area.value = text;
+                area.dispatchEvent(new Event("input"));
+            };
+            restore(".verse-example-editor", resume.edited.code);
+            restore('.verse-example-hidden[data-part="setup"] textarea', resume.edited.setup);
+            restore('.verse-example-hidden[data-part="checks"] textarea', resume.edited.checks);
         }
         wrapper.querySelector(".verse-example-run").click();
     }

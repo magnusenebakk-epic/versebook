@@ -311,9 +311,10 @@ const PRINT_STUB = 'Print(Message:string)<computes>:void={}';
 const PRINT_OUTPUT = 'Print(Message:string)<computes>:void=DebugPrint(Message)';
 
 // Composes a snippet's test from its parts: `code` (the displayed lines), `prepend` and `append` (the hidden setup
-// before it and checks after it). Returns the test's text (`content`) and, for each of its lines, the index of the
-// displayed line it came from, or -1 for a line the reader doesn't see (`origin`), and how many columns to the right
-// of its place in the displayed line it starts (`shift`: the assert block's indentation).
+// before it and checks after it). Returns the test's text (`content`) and where each of its lines came from (`where`):
+// null for a line of the test's own (the stubs, the assert block's first line), or {part, line, shift}: the part
+// ('code', 'setup' for prepend, 'checks' for append), the line's index in it, and how many columns to the right of its
+// place there it starts in the test (the assert block's indentation).
 export function composeTest({ code, prepend, append }, options = {}) {
   // Separate type definitions from test code
   const { typeDefLines, testCodeLines, typeDefIndices, testCodeIndices } = separateTypeDefinitions(code);
@@ -322,37 +323,33 @@ export function composeTest({ code, prepend, append }, options = {}) {
   const parts = [
     ...TEST_USING,
     SLEEP_STUB,
-    options.printOutput ? PRINT_OUTPUT : PRINT_STUB,
-    ...prepend
+    options.printOutput ? PRINT_OUTPUT : PRINT_STUB
   ];
-  const origin = parts.map(() => -1);
-  const shift = parts.map(() => 0);
+  const where = parts.map(() => null);
+  parts.push(...prepend);
+  where.push(...prepend.map((_, line) => ({ part: 'setup', line, shift: 0 })));
 
   // Add type definitions at module scope (if any)
   if (typeDefLines.length > 0) {
     parts.push(...typeDefLines);
-    origin.push(...typeDefIndices);
-    shift.push(...typeDefIndices.map(() => 0));
+    where.push(...typeDefIndices.map(line => ({ part: 'code', line, shift: 0 })));
   }
 
   // Only add assert: block if there's test code or append lines
   if (testCodeLines.length > 0 || append.length > 0) {
     parts.push('assert:');
-    origin.push(-1);
-    shift.push(0);
+    where.push(null);
 
     // Add test code (indented)
     parts.push(...testCodeLines.map(line => '    ' + line));
-    origin.push(...testCodeIndices);
-    shift.push(...testCodeIndices.map(() => 4));
+    where.push(...testCodeIndices.map(line => ({ part: 'code', line, shift: 4 })));
 
     // Add append lines (indented)
     parts.push(...append.map(line => '    ' + line));
-    origin.push(...append.map(() => -1));
-    shift.push(...append.map(() => 4));
+    where.push(...append.map((_, line) => ({ part: 'checks', line, shift: 4 })));
   }
 
-  return { content: parts.join('\n'), origin, shift };
+  return { content: parts.join('\n'), where };
 }
 
 export function extractVerseSnippets(markdownContent, sourceName) {

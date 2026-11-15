@@ -127,7 +127,12 @@ How it fits together:
   and adds `js/VerseRun.js` to the pages, when the runtime is there (below).
 - `docs/js/VerseRun.js` gives every example on a page that has an entry in its chapter's file
   the buttons, and reads the test runner's output as `bin/vtest` does. Errors are reported at
-  the example's own lines; an error in the hidden part is reported as such.
+  the example's own lines.
+- Many examples only compile because of the hidden setup in the comment before them (stub
+  definitions of the names they use), and are followed by hidden checks. An example that has
+  either gets a **Hidden code** button that shows them, so the reader can see what the example
+  ran against; with Edit they can be changed too (give a stub a body that prints, say). An
+  error in a hidden part is reported there, by its line.
 - `docs/runtime/run.html` and `run.js` are one run: a fresh instance of the test runner in a
   frame of its own, which Stop removes.
 - `docs/coi-sw.js` is a service worker that makes the pages cross-origin isolated, which the
