@@ -157,6 +157,27 @@ What a reader needs: a browser with 64-bit WebAssembly (current Chrome, Edge and
 not Safari). The first Run downloads the runtime (about 85 MB, 16 MB compressed in
 transfer) and compiles it; later runs on the page take about a second.
 
+### Links to the Verse Sandbox
+
+The Verse Sandbox is the place to write and run whole Verse programs in the browser. The book
+links to it when its build is told where it is: `extra.verse_sandbox` in `mkdocs.yml`, which
+takes the `VERSE_SANDBOX_URL` environment variable.
+
+```bash
+VERSE_SANDBOX_URL=https://<the sandbox's address> mkdocs build
+```
+
+With an address, the same hook adds a **▶ Verse Sandbox** entry to the navigation (after the
+Runtime API), and an example that can't run in the reader's browser (Safari has no 64-bit
+WebAssembly) says so with a link to the sandbox. Without one, which is the default, the site
+has no link to the sandbox. The address isn't in the repository: put it in `mkdocs.yml` in
+place of the `!ENV` value once the sandbox has a public one.
+
+The link goes to the sandbox, not to "this example in the sandbox". The sandbox runs programs
+(definitions, then the statements to run), and most of the book's examples are fragments that
+are tested inside an `assert:` block: with their hidden setup in front, 158 of the 861 run as
+a program as they stand.
+
 ## Summarising the runtime API
 
 Two parts of the Verse runtime are not written in Verse and have no

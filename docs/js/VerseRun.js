@@ -20,6 +20,8 @@ const ResumeKey = "verse-run.resume"; // the example to run after the reload tha
 // A run that prints more lines than this is stopped: every line is work for the page, and a loop that prints without
 // end would keep it from answering (its Stop button too).
 const MaxLines = 1000;
+// The Verse Sandbox's address, when the site was built with one (hooks/run_buttons.py puts it in the page).
+const Sandbox = document.querySelector('meta[name="verse-sandbox"]')?.content || "";
 const Unsupported = "Running examples needs a browser with 64-bit WebAssembly: a current Chrome, Edge or Firefox.";
 
 // ---------- The page's examples ----------
@@ -236,13 +238,13 @@ async function start(example) {
     const { content, where } = composeTest({ code, prepend, append }, { printOutput: true });
 
     if (!Runtime.supported()) {
-        show(example, "unavailable", Unsupported);
+        show(example, "unavailable", Unsupported, true);
         return;
     }
     // (What a reload must bring back: the reader's version of the parts, and whether the hidden ones were showing.)
     const keep = { edited: edited ? { code: textOf(code), setup: textOf(prepend), checks: textOf(append) } : null, revealed: "revealed" in wrapper.dataset };
     if (!crossOriginIsolated && !(await isolate(snippet, keep))) {
-        show(example, "unavailable", "Examples can't run here: this page can't be given the browser's permission to run threads.");
+        show(example, "unavailable", "Examples can't run here: this page can't be given the browser's permission to run threads.", true);
         return;
     }
 
@@ -271,9 +273,17 @@ async function start(example) {
     }
 }
 
-function show(example, state, text) {
+// Shows an example's state and the line that says it. `pointToSandbox`: the example can't run on this page, and the
+// reader is shown the way to the sandbox (if the site knows where it is).
+function show(example, state, text, pointToSandbox = false) {
     example.wrapper.dataset.state = state;
     example.status.textContent = text;
+    if (pointToSandbox && Sandbox) {
+        const link = document.createElement("a");
+        link.href = Sandbox;
+        link.textContent = "Open the Verse Sandbox";
+        example.status.append(" ", link);
+    }
 }
 
 // Lines the runtime prints that aren't the example's: the engine's log lines and compile errors' second lines, and what

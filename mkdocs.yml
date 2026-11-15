@@ -82,6 +82,12 @@ extra_javascript:
 hooks:
   - hooks/run_buttons.py
 
+extra:
+  # The Verse Sandbox's address: the navigation gets an entry for it, and an example that can't run in the
+  # reader's browser points there. While it is empty (no VERSE_SANDBOX_URL at build time) the site has no
+  # link to the sandbox.
+  verse_sandbox: !ENV [VERSE_SANDBOX_URL, ""]
+
 nav:
   - Home: index.md
   - Overview: 00_overview.md
