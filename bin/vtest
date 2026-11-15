@@ -430,7 +430,12 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('Unexpected error:', err);
-  process.exit(1);
-});
+// Run as a command; bin/outputs loads this file for runTest.
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Unexpected error:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { runTest };

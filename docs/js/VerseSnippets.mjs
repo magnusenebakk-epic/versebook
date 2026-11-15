@@ -352,6 +352,55 @@ export function composeTest({ code, prepend, append }, options = {}) {
   return { content: parts.join('\n'), where };
 }
 
+// Lines the test runner prints that aren't the example's: the engine's log lines, compile errors' second lines, the
+// runner's own remarks ("*** Warning: test had zero asserts in it ***"), and what the WebAssembly build says while it
+// starts.
+const NOT_THE_EXAMPLES = /^(Log\w*: |\[\d{4}\.\d\d\.\d\d-|Used inside function |\*\*\* .* \*\*\*$|Used memory before allocating anything was |Failed to open read: |Blocking on the main thread is very dangerous)/;
+
+// Reads what the test runner printed for a test composed by composeTest (`lines`: its output; `where`: the test's), as
+// bin/vtest reads it. Returns
+//   errors, warnings  the compiler's, each {part, line, column, message} placed in the part of the test it is in
+//                     (line and column counted from 1 there; part: null for a line of the test's own). A warning
+//                     doesn't fail the test; only those in the example's code are kept.
+//   checksFailed      the test compiled and then failed: a runtime error in the example, or a check after it
+//   printed           every other line that isn't the runner's own: what the example printed
+export function readTestOutput(lines, where) {
+  const located = /^(?:LogVerseBuild: (?:Error|Warning): )?(.*?)\((\d+),(\d+),\s*(\d+),(\d+)\):\s*(.*)$/;
+  const errors = [];
+  const warnings = [];
+  const printed = [];
+  let checksFailed = false;
+  for (const line of lines) {
+    const text = line.replace(/\r$/, '');
+    const match = located.exec(text);
+    if (match) {
+      const row = Number(match[2]);
+      const column = Number(match[3]);
+      const kind = /^(Script Warning|Script Error|Verse compiler error)(?: [A-Z]?\d+)?:\s*/.exec(match[6]);
+      const message = kind ? match[6].slice(kind[0].length) : match[6];
+      if (/^Failed to compile:/.test(message)) continue; // the summary after the errors themselves
+      if (/Expected result but encountered runtime error/.test(message)) {
+        checksFailed = true;
+        continue;
+      }
+      const from = row >= 1 && row <= where.length ? where[row - 1] : null;
+      const place = from
+        ? { part: from.part, line: from.line + 1, column: Math.max(1, column - from.shift), message }
+        : { part: null, message };
+      if (kind && kind[1] === 'Script Warning') {
+        if (place.part === 'code') warnings.push(place);
+      } else {
+        errors.push(place);
+      }
+    } else if (/^\*\*\* Testing completed with \d+ errors?\. \*\*\*/.test(text)) {
+      if (errors.length === 0) checksFailed = true;
+    } else if (text.trim() && !NOT_THE_EXAMPLES.test(text)) {
+      printed.push(text);
+    }
+  }
+  return { errors, warnings, printed, checksFailed };
+}
+
 export function extractVerseSnippets(markdownContent, sourceName) {
   const snippets = [];
   const skipped = [];

@@ -1,19 +1,22 @@
 """Run buttons for the book's examples (docs/js/VerseRun.js), and the links to the Verse Sandbox.
 
-The buttons need the Verse test runner built for browsers: docs/runtime/VerseTestScriptCmdVMWeb.js, .wasm and .data
-(DEVELOPMENT.md says where they come from). When the three files are there, this hook
+An example gets a Run button when running it shows something: the examples that print, which bin/outputs records in
+examples_with_output.json. The buttons need the Verse test runner built for browsers:
+docs/runtime/VerseTestScriptCmdVMWeb.js, .wasm and .data (DEVELOPMENT.md says where they come from). When the three
+files are there, this hook
 
-- publishes each chapter's tested examples as snippets/<chapter>.json, made by bin/snippets with the implementation
-  bin/extract makes the book's tests with, and
-- adds js/VerseRun.js to the pages' scripts.
+- publishes those examples, chapter by chapter, as snippets/<chapter>.json, made by bin/snippets with the
+  implementation bin/extract makes the book's tests with, and
+- adds js/VerseRun.js to the pages of the chapters that have such an example.
 
-Without them, or without Node.js to run bin/snippets with, it does neither: the site builds as it always has, and its
-pages load nothing more than before.
+Without the runtime, or without Node.js to run bin/snippets with, it does neither: the site builds as it always has,
+and its pages load nothing more than before.
 
 The files are made in a temporary folder, not under docs/: `mkdocs serve` rebuilds when something under docs/ changes.
 
 The sandbox: when mkdocs.yml's extra.verse_sandbox has its address, the navigation gets an entry for it and every page
-says where it is (a meta element), for the buttons to point a reader there whose browser can't run the examples.
+with Run buttons says where it is (a meta element), for the buttons to point a reader there whose browser can't run
+the examples.
 While the setting is empty the site has no link to the sandbox.
 """
 
@@ -24,8 +27,8 @@ import shutil
 import subprocess
 import tempfile
 
-from mkdocs.config.config_options import ExtraScriptValue
 from mkdocs.structure.files import File
+from mkdocs.utils import get_relative_url
 
 log = logging.getLogger("mkdocs.hooks.run_buttons")
 
@@ -35,6 +38,7 @@ SANDBOX_ENTRY = "▶ Verse Sandbox"
 SANDBOX_ENTRY_AFTER = "api/verse_runtime_api.html"  # the navigation's other tool; the last two entries stay last
 
 _generated = None  # this build's temporary folder, when the buttons are on
+_chapters = set()  # the chapters with a Run button: "07_control" for docs/07_control.md
 
 
 def _remove_generated():
@@ -42,6 +46,7 @@ def _remove_generated():
     if _generated:
         shutil.rmtree(_generated, ignore_errors=True)
         _generated = None
+    _chapters.clear()
 
 
 def _sandbox(config):
@@ -86,10 +91,11 @@ def on_config(config):
         return config
     log.info("Run buttons: %s", result.stdout.strip())
 
-    if not any(str(script) == PAGE_SCRIPT for script in config.extra_javascript):
-        script = ExtraScriptValue(PAGE_SCRIPT)
-        script.type = "module"
-        config.extra_javascript.append(script)
+    snippets = os.path.join(_generated, "snippets")
+    for directory, _, names in os.walk(snippets):
+        for name in names:
+            path = os.path.relpath(os.path.join(directory, name), snippets).replace(os.sep, "/")
+            _chapters.add(os.path.splitext(path)[0])
     return config
 
 
@@ -103,11 +109,15 @@ def on_files(files, config):
 
 
 def on_post_page(output, page, config):
-    url = _sandbox(config)
-    if not url:
+    if os.path.splitext(page.file.src_uri)[0] not in _chapters:
         return output
-    meta = '<meta name="verse-sandbox" content="%s">' % html.escape(url, quote=True)
-    return output.replace("</head>", meta + "</head>", 1)
+    script = '<script type="module" src="%s"></script>' % html.escape(get_relative_url(PAGE_SCRIPT, page.url), quote=True)
+    output = output.replace("</body>", script + "</body>", 1)
+    url = _sandbox(config)
+    if url:
+        meta = '<meta name="verse-sandbox" content="%s">' % html.escape(url, quote=True)
+        output = output.replace("</head>", meta + "</head>", 1)
+    return output
 
 
 def on_post_build(config):

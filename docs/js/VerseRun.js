@@ -1,18 +1,18 @@
 // Run buttons for the book's examples.
 //
-// Every example the book's checks test (bin/extract) gets a Run button under it. Run composes the example's test as the
-// checks do (VerseSnippets.mjs: the example between its hidden setup and its hidden checks), runs it in this page with
-// the Verse test runner built for WebAssembly (runtime/), and shows what the example printed and whether its checks
-// held. Edit lets the reader change the example and run it again.
+// An example that prints something when it runs gets a Run button under it (which ones: bin/outputs records them). Run
+// composes the example's test as the book's checks do (VerseSnippets.mjs: the example between its hidden setup and its
+// hidden checks), runs it in this page with the Verse test runner built for WebAssembly (runtime/), and shows what the
+// example printed. Edit lets the reader change the example and run it again.
 //
-// Many examples are fragments that only compile with their hidden setup (stub definitions of the names they use). An
-// example with hidden setup or checks has a Hidden code button that shows them; with Edit they can be changed too.
+// Many examples only compile with their hidden setup (definitions of the names they use). An example with hidden setup
+// or checks has a Hidden code button that shows them; with Edit they can be changed too.
 //
 // The page's examples come from snippets/<chapter>.json (bin/snippets, run by the site's build: hooks/run_buttons.py,
-// which also adds this script to the pages, and does neither for a site built without the runtime); an example on the
-// page is matched to its entry by its code. The runtime is fetched and compiled on the first Run and kept for the next
+// which also adds this script to the pages of the chapters that have one, and does neither for a site built without
+// the runtime); an example on the page is matched to its entry by its code. The runtime is fetched and compiled on the first Run and kept for the next
 // ones; each run gets a fresh instance in a frame of its own (runtime/run.html), which Stop removes.
-import { composeTest } from "./VerseSnippets.mjs";
+import { composeTest, readTestOutput } from "./VerseSnippets.mjs";
 
 const Root = new URL("../", import.meta.url); // the site's root: this file is <root>/js/VerseRun.js
 const Build = "VerseTestScriptCmdVMWeb";
@@ -286,48 +286,10 @@ function show(example, state, text, pointToSandbox = false) {
     }
 }
 
-// Lines the runtime prints that aren't the example's: the engine's log lines and compile errors' second lines, and what
-// the WebAssembly build says while it starts.
-const Noise = /^(Log\w*: |\[\d{4}\.\d\d\.\d\d-|Used inside function |Used memory before allocating anything was |Failed to open read: |Blocking on the main thread is very dangerous)/;
-
-// What the test runner printed, read as the book's own checks read it (bin/vtest): compile errors and failed checks
-// with their positions, mapped from the composed test's lines to the example's; everything else it printed that isn't
-// the runtime's own is what the example printed.
+// A run's outcome read: what the test runner printed (VerseSnippets.mjs reads it, as the book's own tools do), with how
+// the run ended.
 function interpret(outcome, where) {
-    const located = /^(?:LogVerseBuild: (?:Error|Warning): )?(.*?)\((\d+),(\d+),\s*(\d+),(\d+)\):\s*(.*)$/;
-    const errors = [];
-    const warnings = [];
-    const printed = [];
-    let checksFailed = false;
-    for (const line of outcome.lines) {
-        const text = line.replace(/\r$/, "");
-        const match = located.exec(text);
-        if (match) {
-            const row = Number(match[2]);
-            const column = Number(match[3]);
-            const kind = /^(Script Warning|Script Error|Verse compiler error)(?: [A-Z]?\d+)?:\s*/.exec(match[6]);
-            const message = kind ? match[6].slice(kind[0].length) : match[6];
-            if (/^Failed to compile:/.test(message)) continue; // the summary after the errors themselves
-            if (/Expected result but encountered runtime error/.test(message)) {
-                checksFailed = true;
-                continue;
-            }
-            // (part: null for a line of the test's own, around the example.)
-            const from = row >= 1 && row <= where.length ? where[row - 1] : null;
-            const place = from ? { part: from.part, line: from.line + 1, column: Math.max(1, column - from.shift), message } : { part: null, message };
-            // A warning doesn't fail the test (bin/vtest passes it too); one outside the example isn't the reader's.
-            if (kind && kind[1] === "Script Warning") {
-                if (place.part === "code") warnings.push(place);
-            } else {
-                errors.push(place);
-            }
-        } else if (/^\*\*\* Testing completed with \d+ errors?\. \*\*\*/.test(text)) {
-            if (errors.length === 0) checksFailed = true;
-        } else if (text.trim() && !Noise.test(text)) {
-            printed.push(text);
-        }
-    }
-    return { errors, warnings, printed, checksFailed, status: outcome.status, what: outcome.what, ms: outcome.ms };
+    return { ...readTestOutput(outcome.lines, where), status: outcome.status, what: outcome.what, ms: outcome.ms };
 }
 
 // Shows a run's result. `checked`: the test had hidden checks after the example.

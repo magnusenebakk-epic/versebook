@@ -1,0 +1,47 @@
+{
+  "about": "The tested examples that print something when they run: the ones with a Run button on the site. Made by bin/outputs; do not edit.",
+  "examples": {
+    "01_expressions": [
+      "27",
+      "34",
+      "48"
+    ],
+    "03_containers": [
+      "12",
+      "50"
+    ],
+    "04_operators": [
+      "13"
+    ],
+    "06_functions": [
+      "64",
+      "81"
+    ],
+    "08_failure": [
+      "16"
+    ],
+    "10_classes_interfaces": [
+      "006",
+      "024",
+      "054"
+    ],
+    "11_types": [
+      "01"
+    ],
+    "13_effects": [
+      "04"
+    ],
+    "14_concurrency": [
+      "15",
+      "16",
+      "30"
+    ],
+    "16_modules": [
+      "27",
+      "30"
+    ],
+    "17_persistable": [
+      "09"
+    ]
+  }
+}
