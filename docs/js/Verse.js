@@ -108,3 +108,18 @@ ThemeObserver.observe(document.body, {
     attributes: true,
     attributeFilter: [Cache.Attribute]
 });
+
+// For the page's other scripts (the examples' editors, VerseRun.js): Verse code highlighted as the page's blocks are,
+// in the current theme. Null until the highlighter and that theme have loaded.
+export const HighlightVerse = (Code) => {
+    const Theme = Cache.Themes[Cache.CurrentTheme];
+
+    if (!Cache.VerseHighlighter || !Cache.Grammar || !Theme) {
+        return null;
+    }
+
+    return Cache.VerseHighlighter.codeToHtml(Code, {
+        lang: Cache.Grammar.name,
+        theme: Theme.name
+    });
+};

@@ -144,6 +144,10 @@ How it fits together:
   either gets a **Hidden code** button that shows them, so the reader can see what the example
   ran against; with Edit they can be changed too (give a stub a body that prints, say). An
   error in a hidden part is reported there, by its line.
+- With Edit the example keeps its colours: the editor is a text area laid over a drawing of
+  its text made by the book's highlighter (`HighlightVerse`, which `docs/js/Verse.js` exports
+  for this), redrawn as the reader types. If the highlighter hasn't loaded, the text area
+  shows its text plainly.
 - `docs/runtime/run.html` and `run.js` are one run: a fresh instance of the test runner in a
   frame of its own, which Stop removes.
 - `docs/coi-sw.js` is a service worker that makes the pages cross-origin isolated, which the

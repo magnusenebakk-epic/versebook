@@ -35,36 +35,74 @@ table th, table td {
 
 .verse-example[data-editing] > pre,
 .verse-example:not([data-revealed]) > .verse-example-hidden,
-.verse-example-editor[hidden],
 .verse-example-result[hidden],
 .verse-example-bar button[hidden],
 .verse-example-frame {
   display: none;
 }
 
-.verse-example-editor,
-.verse-example-part {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  padding: 0.77em 1.18em;
+/* An editor: the text area the reader types in, over a drawing of its text with the book's highlighter (VerseRun.js:
+   drawEditor). The two share one grid cell, which the drawing sizes; the box scrolls sideways for long lines. */
+.verse-example-code {
+  display: grid;
+  overflow-x: auto;
   border: 1px solid var(--md-accent-fg-color);
   border-radius: 0.1rem;
-  color: var(--md-code-fg-color);
   background: var(--md-code-bg-color);
-  font-family: var(--md-code-font-family, monospace);
-  font-size: 0.85em;
-  line-height: 1.4;
-  tab-size: 4;
-  white-space: pre;
-  overflow-x: auto;
-  resize: vertical;
 }
 
-.verse-example-part[readonly] {
+.verse-example-code[hidden] {
+  display: none;
+}
+
+.verse-example-code[data-readonly] {
   border-style: dashed;
   border-color: var(--md-default-fg-color--lighter);
+}
+
+.md-typeset .verse-example-code > pre {
+  grid-area: 1 / 1;
+  margin: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.md-typeset .verse-example-code > pre > code {
+  overflow: visible;
+}
+
+/* (Above the drawing, which the theme positions: clicks, the caret and the selection are the text area's.) */
+.verse-example-code > textarea {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  outline: 0;
+  overflow: hidden;
   resize: none;
+  white-space: pre;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--md-code-fg-color);
+}
+
+.verse-example-code > textarea::selection {
+  background: rgba(100, 150, 255, 0.35);
+}
+
+/* Without the highlighter the text area shows its own text, and the drawing only gives the size. */
+.verse-example-code[data-plain] > textarea {
+  color: var(--md-code-fg-color);
+  -webkit-text-fill-color: var(--md-code-fg-color);
+}
+
+.verse-example-code[data-plain] > pre {
+  visibility: hidden;
 }
 
 .verse-example-hidden[data-part="setup"] {

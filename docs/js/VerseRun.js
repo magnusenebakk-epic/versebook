@@ -106,32 +106,38 @@ function makeExample(pre, snippet) {
     const example = { wrapper, snippet, run, result, running: false };
     const editing = () => "editing" in wrapper.dataset;
 
-    // A text area for one part of the test: the example's code, or a hidden part.
-    const size = (area) => {
-        area.rows = area.value.split("\n").length + (area.readOnly ? 0 : 1);
-    };
-    const fill = (area, text) => {
-        area.value = text;
-        size(area);
-    };
+    // An editor for one part of the test (the example's code, or a hidden part): {box, area}, the text area and the
+    // element that holds it (drawEditor: its text is drawn underneath it with the book's highlighter).
     const linesOf = (area) => {
         const text = area.value.replace(/\r/g, "").replace(/\s+$/, "");
         return text ? text.split("\n") : [];
     };
     const makeEditor = (className, label) => {
+        const box = document.createElement("div");
+        box.className = "verse-example-code";
         const area = document.createElement("textarea");
         area.className = className;
+        area.rows = 1; // the drawing gives the editor its height
+        area.wrap = "off";
         area.spellcheck = false;
         area.autocapitalize = "off";
         area.setAttribute("aria-label", `${label}. Tab indents; Escape leaves the editor; Ctrl+Enter runs.`);
-        area.addEventListener("input", () => size(area));
+        box.append(area);
+        const draw = () => drawEditor(box, area);
+        Editors.add(draw);
+        area.addEventListener("input", draw);
+        // (The text area is as large as its text and doesn't scroll in itself: its box does.)
+        area.addEventListener("scroll", () => {
+            area.scrollTop = 0;
+            area.scrollLeft = 0;
+        });
         // Tab indents (Verse's blocks are indented, by four spaces in the book) instead of leaving the editor, which
         // Escape does; Ctrl+Enter runs.
         area.addEventListener("keydown", (event) => {
             if (event.key === "Tab" && !area.readOnly && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
                 event.preventDefault();
                 area.setRangeText("    ", area.selectionStart, area.selectionEnd, "end");
-                size(area);
+                draw();
             } else if (event.key === "Escape") {
                 run.focus();
             } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -139,12 +145,21 @@ function makeExample(pre, snippet) {
                 start(example);
             }
         });
-        return area;
+        return { box, area, draw };
+    };
+    const fill = (editor, text) => {
+        editor.area.value = text;
+        editor.draw();
+    };
+    const setReadOnly = (editor, on) => {
+        editor.area.readOnly = on;
+        if (on) editor.box.dataset.readonly = "";
+        else delete editor.box.dataset.readonly;
     };
 
     const editor = makeEditor("verse-example-editor", "The example's code");
-    editor.hidden = true;
-    pre.after(editor);
+    editor.box.hidden = true;
+    pre.after(editor.box);
 
     // The hidden parts this example has, each shown (read-only until Edit) once the reader asks for the hidden code.
     const hidden = {};
@@ -157,13 +172,13 @@ function makeExample(pre, snippet) {
         const label = document.createElement("div");
         label.className = "verse-example-caption";
         label.textContent = caption;
-        const area = makeEditor("verse-example-part", caption);
-        area.readOnly = true;
-        fill(area, text);
-        section.append(label, area);
+        const partEditor = makeEditor("verse-example-part", caption);
+        setReadOnly(partEditor, true);
+        fill(partEditor, text);
+        section.append(label, partEditor.box);
         if (part === "setup") wrapper.prepend(section);
-        else editor.after(section);
-        hidden[part] = { area, text };
+        else editor.box.after(section);
+        hidden[part] = { editor: partEditor, text };
     }
     example.reveal = () => {};
     if (Object.keys(hidden).length) {
@@ -191,30 +206,27 @@ function makeExample(pre, snippet) {
         return textOf(lines) === textOf(original) ? original : lines;
     };
     example.parts = () => (editing() ? {
-        code: part(editor, snippet.code),
-        prepend: hidden.setup ? part(hidden.setup.area, snippet.prepend) : snippet.prepend,
-        append: hidden.checks ? part(hidden.checks.area, snippet.append) : snippet.append,
+        code: part(editor.area, snippet.code),
+        prepend: hidden.setup ? part(hidden.setup.editor.area, snippet.prepend) : snippet.prepend,
+        append: hidden.checks ? part(hidden.checks.editor.area, snippet.append) : snippet.append,
     } : { code: snippet.code, prepend: snippet.prepend, append: snippet.append });
 
     edit.addEventListener("click", () => {
-        fill(editor, snippet.text);
         wrapper.dataset.editing = ""; // the stylesheet hides the block: whichever one the highlighter has put there
-        editor.hidden = false;
-        for (const { area } of Object.values(hidden)) {
-            area.readOnly = false;
-            size(area);
-        }
+        editor.box.hidden = false;
+        fill(editor, snippet.text);
+        for (const hiddenPart of Object.values(hidden)) setReadOnly(hiddenPart.editor, false);
         edit.hidden = true;
         reset.hidden = false;
-        editor.focus();
+        editor.area.focus();
     });
     reset.addEventListener("click", () => {
         if (example.running) Runtime.stop();
         delete wrapper.dataset.editing;
-        editor.hidden = true;
-        for (const { area, text } of Object.values(hidden)) {
-            area.readOnly = true;
-            fill(area, text);
+        editor.box.hidden = true;
+        for (const hiddenPart of Object.values(hidden)) {
+            setReadOnly(hiddenPart.editor, true);
+            fill(hiddenPart.editor, hiddenPart.text);
         }
         edit.hidden = false;
         reset.hidden = true;
@@ -227,6 +239,73 @@ function makeExample(pre, snippet) {
         else start(example);
     });
     return example;
+}
+
+// ---------- Editors that keep the code's colours ----------
+
+// The book's highlighter (Verse.js), once it has loaded: (code) => the markup of a highlighted block in the page's
+// current theme, or null while it can't make one. The buttons work without it: an editor then shows its text plainly.
+let highlightVerse = null;
+// Every editor's draw(): they are drawn again when the highlighter arrives, and when the page's blocks are rendered
+// again (the theme changed).
+const Editors = new Set();
+const drawEditors = () => {
+    for (const draw of Editors) draw();
+};
+import("./Verse.js").then((module) => {
+    highlightVerse = module.HighlightVerse;
+    drawEditors();
+}).catch(() => {
+    // No highlighter (its own imports didn't load): plain editors.
+});
+
+// What makes a text area's letters sit exactly on a drawing's: the drawing's type, and its distance from the box.
+const TypeProperties = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "fontKerning", "fontFeatureSettings", "fontVariantLigatures",
+    "lineHeight", "letterSpacing", "wordSpacing", "tabSize", "textIndent"];
+const Sides = ["Top", "Right", "Bottom", "Left"];
+
+// Draws an editor: its text area's text as a highlighted block underneath the text area (in `box`), which gives the
+// editor its size. The text area on top is where the reader types; with a drawing under it, its own text isn't shown
+// (the stylesheet), only its caret and selection. Without the highlighter the drawing is left blank and the text area
+// shows its text.
+function drawEditor(box, area) {
+    // (A last line that is empty has no height in a block: a space gives it the height the caret needs.)
+    const text = /\n$/.test(area.value) || area.value === "" ? `${area.value} ` : area.value;
+    let markup = null;
+    try {
+        markup = highlightVerse && highlightVerse(text);
+    } catch {
+        // (The theme is changing and the new one hasn't loaded yet: plain until the blocks are rendered again.)
+    }
+    let drawing;
+    if (markup) {
+        const holder = document.createElement("div");
+        holder.innerHTML = markup; // the highlighter's own markup of the text, as Verse.js puts it in the page
+        drawing = holder.firstElementChild;
+        drawing.removeAttribute("tabindex");
+        delete box.dataset.plain;
+    } else {
+        drawing = document.createElement("pre");
+        drawing.append(document.createElement("code"));
+        drawing.firstElementChild.textContent = text;
+        box.dataset.plain = "";
+    }
+    drawing.setAttribute("aria-hidden", "true");
+    const old = box.querySelector(":scope > pre");
+    if (old) old.replaceWith(drawing);
+    else box.prepend(drawing);
+
+    const code = drawing.querySelector("code") || drawing;
+    const type = getComputedStyle(code);
+    const frame = getComputedStyle(drawing);
+    for (const property of TypeProperties) area.style[property] = type[property];
+    for (const side of Sides) {
+        const distance = ["padding", "border", "margin"].reduce((sum, kind) => {
+            const name = kind === "border" ? `border${side}Width` : `${kind}${side}`;
+            return sum + (parseFloat(type[name]) || 0) + (kind === "margin" ? 0 : parseFloat(frame[name]) || 0);
+        }, 0);
+        area.style[`padding${side}`] = `${distance}px`;
+    }
 }
 
 // ---------- A run ----------
@@ -532,12 +611,19 @@ await loadSnippets();
 if (snippets.length) {
     decorate();
     let scheduled = false;
-    new MutationObserver(() => {
+    let rendered = false;
+    new MutationObserver((records) => {
+        // (An example's block put there anew: the highlighter rendered the page's blocks, for the first time or in
+        // another theme, and the editors are to be drawn to match.)
+        rendered ||= records.some((record) => record.target instanceof Element && record.target.classList.contains("verse-example")
+            && [...record.addedNodes].some((node) => node.nodeName === "PRE"));
         if (scheduled) return;
         scheduled = true;
         queueMicrotask(() => {
             scheduled = false;
             decorate();
+            if (rendered) drawEditors();
+            rendered = false;
         });
     }).observe(document.body, { childList: true, subtree: true });
     resumeAfterReload();
