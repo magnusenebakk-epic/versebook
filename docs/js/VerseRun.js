@@ -317,13 +317,13 @@ async function start(example) {
     const { content, where } = composeTest({ code, prepend, append }, { printOutput: true });
 
     if (!Runtime.supported()) {
-        show(example, "unavailable", Unsupported, true);
+        show(example, "unavailable", Unsupported, { pointToSandbox: true });
         return;
     }
     // (What a reload must bring back: the reader's version of the parts, and whether the hidden ones were showing.)
     const keep = { edited: edited ? { code: textOf(code), setup: textOf(prepend), checks: textOf(append) } : null, revealed: "revealed" in wrapper.dataset };
     if (!crossOriginIsolated && !(await isolate(snippet, keep))) {
-        show(example, "unavailable", "Examples can't run here: this page can't be given the browser's permission to run threads.", true);
+        show(example, "unavailable", "Examples can't run here: this page can't be given the browser's permission to run threads.", { pointToSandbox: true });
         return;
     }
 
@@ -352,11 +352,13 @@ async function start(example) {
     }
 }
 
-// Shows an example's state and the line that says it. `pointToSandbox`: the example can't run on this page, and the
-// reader is shown the way to the sandbox (if the site knows where it is).
-function show(example, state, text, pointToSandbox = false) {
+// Shows an example's state and the line that says it. `tooltip`: more about it, for a reader who points at the line.
+// `pointToSandbox`: the example can't run on this page, and the reader is shown the way to the sandbox (if the site
+// knows where it is).
+function show(example, state, text, { tooltip = "", pointToSandbox = false } = {}) {
     example.wrapper.dataset.state = state;
     example.status.textContent = text;
+    example.status.title = tooltip;
     if (pointToSandbox && Sandbox) {
         const link = document.createElement("a");
         link.href = Sandbox;
@@ -392,9 +394,11 @@ function report(example, { errors, warnings, printed, checksFailed, status, what
     for (const warning of warnings) add("verse-example-warning", `${at(warning)}: warning: ${warning.message}`);
     // An error in a hidden part: the reader gets to see what it is about.
     if (errors.some((error) => error.part === "setup" || error.part === "checks")) example.reveal(true);
-    const seconds = `${(ms / 1000).toFixed(1)} s`;
+    // A run that went well says so in two words (and that nothing was printed, when there is no output to show
+    // it); how long it took, and that the hidden checks hold, is for the reader who points at the line.
     let state = "passed";
-    let summary = `Compiled and ran in ${seconds}${checked ? "; the hidden checks hold." : "."}${printed.length ? "" : " It prints nothing."}`;
+    let summary = printed.length ? "Compiled successfully" : "Compiled successfully. It prints nothing.";
+    const tooltip = `Compiled and ran in ${(ms / 1000).toFixed(1)} s${checked ? "; the hidden checks hold" : ""}`;
     if (status === "flood") {
         state = "stopped";
         summary = `Stopped: it printed more than ${MaxLines.toLocaleString("en")} lines.`;
@@ -414,7 +418,7 @@ function report(example, { errors, warnings, printed, checksFailed, status, what
         summary = `The test runner ended with status ${status}.`;
     }
     result.hidden = result.childElementCount === 0;
-    show(example, state, summary);
+    show(example, state, summary, { tooltip: state === "passed" ? tooltip : "" });
 }
 
 // ---------- Cross-origin isolation ----------
