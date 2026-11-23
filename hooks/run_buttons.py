@@ -1,13 +1,12 @@
 """Run buttons for the book's examples (docs/js/VerseRun.js), and the links to the Verse Sandbox.
 
-An example gets a Run button when running it shows something: the examples that print, which bin/outputs records in
-examples_with_output.json. The buttons need the Verse test runner built for browsers:
-docs/runtime/VerseTestScriptCmdVMWeb.js, .wasm and .data (DEVELOPMENT.md says where they come from). When the three
-files are there, this hook
+Every example the book tests gets a Run button, whether it prints or not. The buttons need the Verse test runner built
+for browsers: docs/runtime/VerseTestScriptCmdVMWeb.js, .wasm and .data (DEVELOPMENT.md says where they come from). When
+the three files are there, this hook
 
-- publishes those examples, chapter by chapter, as snippets/<chapter>.json, made by bin/snippets with the
+- publishes the tested examples, chapter by chapter, as snippets/<chapter>.json, made by bin/snippets with the
   implementation bin/extract makes the book's tests with, and
-- adds js/VerseRun.js to the pages of the chapters that have such an example.
+- adds js/VerseRun.js to the pages of the chapters that have a tested example.
 
 Without the runtime, or without Node.js to run bin/snippets with, it does neither: the site builds as it always has,
 and its pages load nothing more than before.
@@ -38,7 +37,7 @@ SANDBOX_ENTRY = "▶ Verse Sandbox"
 SANDBOX_ENTRY_AFTER = "api/verse_runtime_api.html"  # the navigation's other tool; the last two entries stay last
 
 _generated = None  # this build's temporary folder, when the buttons are on
-_chapters = set()  # the chapters with a Run button: "07_control" for docs/07_control.md
+_chapters = set()  # the chapters with tested examples: "07_control" for docs/07_control.md
 
 
 def _remove_generated():

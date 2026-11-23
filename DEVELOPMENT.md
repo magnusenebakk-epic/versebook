@@ -96,11 +96,8 @@ one named in `fortniteMain/JanInfo/README.md`, which is out of date.
 
 - `bin/extract <markdown-file> -t <target-directory>` - Extract Verse snippets from markdown
 - `bin/extract_all` - Extract all snippets from all docs
-- `bin/outputs` - Run every tested example and record which ones print something
-  (`examples_with_output.json`): those get a Run button. `--check` only compares
-- `bin/snippets <out-dir>` - Save those examples, with their hidden setup and checks, for the
-  pages' Run buttons (the site's build runs it; see "Run buttons" below). `--all` saves every
-  tested example
+- `bin/snippets <out-dir>` - Save every tested example, with its hidden setup and checks, for
+  the pages' Run buttons (the site's build runs it; see "Run buttons" below)
 
 ### Runtime API Summaries
 
@@ -113,17 +110,16 @@ See "Summarising the runtime API" below.
 
 ## Run buttons (prototype)
 
-An example that prints something can have a **Run** button under it: the reader runs the
-example in the page, sees what it prints, and can edit it and run it again. Nothing is sent
-to a server: the page runs the Verse test runner itself, built for WebAssembly.
+Every example the book tests can have a **Run** button under it: the reader runs the example
+in the page, sees what it prints, and can edit it and run it again. Nothing is sent to a
+server: the page runs the Verse test runner itself, built for WebAssembly.
 
-Only examples that print get a button. Most of the book's examples are fragments written to
-be type-checked: they define things and call nothing, or call stubs, and running one shows
-nothing. Of the 861 tested examples, 20 print (2026-11). Which ones is recorded in
-`examples_with_output.json` by `bin/outputs`, which runs every example in the TestScript VM
-with `Print` printing (it finds the VM as `bin/vtest` does). Run it again after adding an
-example that prints or changing what one prints; `bin/outputs --check` says whether the
-record is still right.
+Most of the book's examples are fragments written to be type-checked: they define things and
+call nothing, or call stubs. Of the 861 tested examples, 20 print (2026-11). The others have a
+button too: a run says that the example compiled and that it prints nothing, and the reader
+can edit it, or its hidden code, into something that prints. An example that fails its test
+(`bin/vtest`) fails the same way on the page, so the buttons are only as good as the tests
+are green with the runtime the site ships.
 
 How it fits together:
 
@@ -132,10 +128,10 @@ How it fits together:
   hidden checks. `bin/extract` uses it for the `.versetest` files, and the pages use it for
   Run, so what a reader runs is what the checks run. The one difference: on a page, `Print`
   prints (through the test runner's `DebugPrint`) instead of being a stub.
-- `bin/snippets` saves the recorded examples as JSON, chapter by chapter. The site's build
+- `bin/snippets` saves the tested examples as JSON, chapter by chapter. The site's build
   runs it (`hooks/run_buttons.py`, an MkDocs hook), publishes the files as
   `snippets/<chapter>.json` and adds `js/VerseRun.js` to the pages of those chapters, when
-  the runtime is there (below). A chapter without such an example loads nothing for it.
+  the runtime is there (below). A page without tested examples loads nothing for it.
 - `docs/js/VerseRun.js` gives every example on a page that has an entry in its chapter's file
   the buttons, and reads the test runner's output as `bin/vtest` does. Errors are reported at
   the example's own lines.

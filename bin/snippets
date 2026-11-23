@@ -1,22 +1,19 @@
 #!/usr/bin/env node
 
-// Saves the examples that get a Run button on the site (docs/js/VerseRun.js), chapter by chapter: the displayed code
-// of each, with the hidden setup before it and the hidden checks after it. A page finds its examples by their code
-// and composes each one's test as bin/extract does (docs/js/VerseSnippets.mjs).
+// Saves the book's tested examples, chapter by chapter, for the Run buttons on the site (docs/js/VerseRun.js): the
+// displayed code of each, with the hidden setup before it and the hidden checks after it. A page finds its examples by
+// their code and composes each one's test as bin/extract does (docs/js/VerseSnippets.mjs).
 //
-// Usage: snippets <out-dir> [--all]   (from the book's root: writes <out-dir>/<chapter>.json)
+// Usage: snippets <out-dir>   (from the book's root: writes <out-dir>/<chapter>.json)
 //
-// An example gets a Run button when running it shows something: the ones examples_with_output.json lists, which
-// bin/outputs records by running every example. --all saves every tested example instead (for tools that look at
-// them all). A chapter with no example to save gets no file.
+// Every example the book tests gets a Run button, whether it prints or not: one that prints nothing still shows that
+// it compiles and runs, and the reader can edit it. A chapter with no tested example gets no file.
 //
 // The site's build runs this (hooks/run_buttons.py) and publishes the files as snippets/<chapter>.json.
 
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
-
-const OUTPUTS_FILE = path.join(__dirname, '..', 'examples_with_output.json');
 
 function findMarkdownFiles(dir) {
   let results = [];
@@ -60,22 +57,10 @@ async function readChapters(docsDir) {
   return chapters;
 }
 
-// The examples that print when they run, as bin/outputs recorded them: { <chapter>: [<number>, ...] }, or null when
-// the record isn't there.
-function readOutputs() {
-  try {
-    return JSON.parse(fs.readFileSync(OUTPUTS_FILE, 'utf-8')).examples;
-  } catch {
-    return null;
-  }
-}
-
 async function main() {
-  const args = process.argv.slice(2);
-  const all = args.includes('--all');
-  const dirs = args.filter(arg => !arg.startsWith('--'));
-  if (dirs.length !== 1) {
-    console.error('Usage: snippets <out-dir> [--all]');
+  const dirs = process.argv.slice(2);
+  if (dirs.length !== 1 || dirs[0].startsWith('--')) {
+    console.error('Usage: snippets <out-dir>');
     process.exit(1);
   }
   const docsDir = path.join(process.cwd(), 'docs');
@@ -83,40 +68,25 @@ async function main() {
     console.error('Error: docs directory not found in current directory');
     process.exit(1);
   }
-  const outputs = all ? null : readOutputs();
-  if (!all && !outputs) {
-    console.error(`Error: ${path.basename(OUTPUTS_FILE)} not found: bin/outputs makes it`);
-    process.exit(1);
-  }
-
   const outDir = path.resolve(dirs[0]);
   fs.mkdirSync(outDir, { recursive: true });
 
   let pages = 0;
   let total = 0;
   for (const { chapter, source, snippets } of await readChapters(docsDir)) {
-    const listed = all ? snippets : snippets.filter(snippet => (outputs[chapter] || []).includes(snippet.number));
-    if (listed.length === 0) {
-      continue;
-    }
     const outFile = path.join(outDir, chapter + '.json');
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
     fs.writeFileSync(outFile, JSON.stringify({
       source,
-      snippets: listed.map(({ number, code, prepend, append }) => ({ number, code, prepend, append }))
+      snippets: snippets.map(({ number, code, prepend, append }) => ({ number, code, prepend, append }))
     }) + '\n');
     pages++;
-    total += listed.length;
+    total += snippets.length;
   }
   console.log(`Saved ${total} example(s) of ${pages} chapter(s) in ${outDir}`);
 }
 
-// Run as a command; bin/outputs loads this file for readChapters.
-if (require.main === module) {
-  main().catch(error => {
-    console.error(error);
-    process.exit(1);
-  });
-}
-
-module.exports = { readChapters, readOutputs, OUTPUTS_FILE };
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

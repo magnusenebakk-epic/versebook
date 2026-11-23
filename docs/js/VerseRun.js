@@ -1,17 +1,19 @@
 // Run buttons for the book's examples.
 //
-// An example that prints something when it runs gets a Run button under it (which ones: bin/outputs records them). Run
-// composes the example's test as the book's checks do (VerseSnippets.mjs: the example between its hidden setup and its
-// hidden checks), runs it in this page with the Verse test runner built for WebAssembly (runtime/), and shows what the
-// example printed. Edit lets the reader change the example and run it again.
+// Every example the book's checks test (bin/extract) gets a Run button under it. Run composes the example's test as the
+// checks do (VerseSnippets.mjs: the example between its hidden setup and its hidden checks), runs it in this page with
+// the Verse test runner built for WebAssembly (runtime/), and shows what the example printed. Most examples print
+// nothing: a run then says that the example compiled, and that it prints nothing. Edit lets the reader change the
+// example and run it again.
 //
 // Many examples only compile with their hidden setup (definitions of the names they use). An example with hidden setup
 // or checks has a Hidden code button that shows them; with Edit they can be changed too.
 //
 // The page's examples come from snippets/<chapter>.json (bin/snippets, run by the site's build: hooks/run_buttons.py,
-// which also adds this script to the pages of the chapters that have one, and does neither for a site built without
-// the runtime); an example on the page is matched to its entry by its code. The runtime is fetched and compiled on the first Run and kept for the next
-// ones; each run gets a fresh instance in a frame of its own (runtime/run.html), which Stop removes.
+// which also adds this script to the pages of the chapters that have tested examples, and does neither for a site
+// built without the runtime); an example on the page is matched to its entry by its code. The runtime is fetched and
+// compiled on the first Run and kept for the next ones; each run gets a fresh instance in a frame of its own
+// (runtime/run.html), which Stop removes.
 import { composeTest, readTestOutput } from "./VerseSnippets.mjs";
 
 const Root = new URL("../", import.meta.url); // the site's root: this file is <root>/js/VerseRun.js
